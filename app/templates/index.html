@@ -178,6 +178,7 @@ input[type="checkbox"]{accent-color:var(--accent)}
     <button onclick="analyzeSelected()">🤖 Analizar seleccionados</button>
     <button class="secondary" onclick="sendSelectedToJira()">📧 Enviar a Jira</button>
     <button class="secondary" onclick="sendSelectedToWebhook()">🔔 Webhook</button>
+    <button class="secondary" onclick="exportCsv()">📥 CSV</button>
     <span class="status-msg" id="bulkStatus"></span>
   </div>
 
@@ -913,6 +914,23 @@ async function sendSelectedToWebhook() {
     if (!r.ok) throw new Error((await r.json()).detail);
     toast('🔔 Webhook enviado');
   } catch(e) { if (e.message!=='auth') toast('Error: '+e.message, true); }
+}
+
+function exportCsv() {
+  if (!errorData.length) { toast('No hay datos para exportar', true); return; }
+  const hdr = ['Count','Status','Exception','Logger','Message','Timestamp','Fingerprint'];
+  const rows = errorData.map(e => [
+    e.count, e.status, e.exception_class, e.logger,
+    '"' + (e.message||"").replace(/"/g,'""') + '"',
+    e.timestamp, e.fingerprint
+  ]);
+  const csv = [hdr.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `lsc-errors-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast('📥 CSV descargado');
 }
 
 /* ============ CRON ============ */
