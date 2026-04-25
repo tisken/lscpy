@@ -177,6 +177,7 @@ input[type="checkbox"]{accent-color:var(--accent)}
     <span id="selectedCount">0 seleccionados</span>
     <button onclick="analyzeSelected()">🤖 Analizar seleccionados</button>
     <button class="secondary" onclick="sendSelectedToJira()">📧 Enviar a Jira</button>
+    <button class="secondary" onclick="sendSelectedToWebhook()">🔔 Webhook</button>
     <span class="status-msg" id="bulkStatus"></span>
   </div>
 
@@ -318,6 +319,24 @@ input[type="checkbox"]{accent-color:var(--accent)}
         <div class="ff" style="display:flex;align-items:center;gap:.3rem"><input type="checkbox" id="smtpSsl"><label style="margin:0">SSL directo</label></div>
       </div>
       <div class="fa"><button onclick="saveSmtp()">💾 Guardar SMTP</button><span class="rc" id="smtpStatus"></span></div>
+    </div>
+  </div>
+
+  <!-- Webhook -->
+  <div class="panel">
+    <div class="panel-head" onclick="togglePanel(this)">
+      <h3>🔔 Webhook / Slack</h3>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="panel-body">
+      <div class="fg">
+        <div class="ff"><label>Tipo</label>
+          <select id="whType"><option value="slack">Slack</option><option value="generic">Genérico</option></select>
+        </div>
+        <div class="ff"><label>Webhook URL</label><input type="text" id="whUrl" placeholder="https://hooks.slack.com/services/..."></div>
+        <div class="ff"><label>Canal (opcional)</label><input type="text" id="whChannel" placeholder="#errors"></div>
+      </div>
+      <div class="fa"><button onclick="saveWebhook()">💾 Guardar Webhook</button><span class="rc" id="whStatus"></span></div>
     </div>
   </div>
 
@@ -689,6 +708,11 @@ async function loadConfig() {
     document.getElementById('smtpKey').value = sm.jira_project_key || 'PROJ';
     document.getElementById('smtpTls').checked = sm.use_tls !== false;
     document.getElementById('smtpSsl').checked = !!sm.use_ssl;
+    // Webhook
+    const wh = cfg.webhook || {};
+    document.getElementById('whType').value = wh.type || 'slack';
+    document.getElementById('whUrl').value = wh.url || '';
+    document.getElementById('whChannel').value = wh.channel || '';
     cfgLoaded = true;
     renderDsList();
   } catch(e) { console.error('loadConfig', e); }
@@ -859,6 +883,35 @@ async function saveSmtp() {
     if (!r.ok) throw new Error('Error guardando');
     document.getElementById('smtpStatus').textContent = '✅ Guardado';
     toast('✅ SMTP guardado');
+  } catch(e) { if (e.message!=='auth') toast('Error: '+e.message, true); }
+}
+
+/* -- Webhook save -- */
+async function saveWebhook() {
+  const payload = {
+    type: document.getElementById('whType').value,
+    url: document.getElementById('whUrl').value.trim(),
+    channel: document.getElementById('whChannel').value.trim(),
+  };
+  try {
+    const r = await apiFetch(`${API}/api/settings/webhook`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    if (!r.ok) throw new Error('Error guardando');
+    document.getElementById('whStatus').textContent = '✅ Guardado';
+    toast('✅ Webhook guardado');
+  } catch(e) { if (e.message!=='auth') toast('Error: '+e.message, true); }
+}
+
+async function sendSelectedToWebhook() {
+  const indices = getSelectedIndices();
+  const analyses = indices.map(i => analysisCache[i]).filter(Boolean);
+  if (!analyses.length) { toast('Analiza los errores seleccionados primero', true); return; }
+  try {
+    const r = await apiFetch(`${API}/api/send-webhook`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({analyses})
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    toast('🔔 Webhook enviado');
   } catch(e) { if (e.message!=='auth') toast('Error: '+e.message, true); }
 }
 

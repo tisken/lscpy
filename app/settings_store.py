@@ -22,6 +22,7 @@ _DEFAULTS = {
     },
     "bitbucket": {"workspace": "", "repo": "", "branch": "main", "user": "", "app_password": "", "repos": []},
     "smtp": {"host": "", "port": 587, "user": "", "password": "", "use_tls": True, "use_ssl": False, "jira_email": "", "jira_project_key": "PROJ"},
+    "webhook": {"url": "", "type": "slack", "channel": ""},
 }
 
 

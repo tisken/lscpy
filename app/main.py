@@ -22,6 +22,7 @@ from app.es_client import get_top_errors, get_error_detail, test_connection
 from app.bitbucket_client import parse_stack_frames, fetch_source_snippet
 from app.llm_analyzer import analyze_error
 from app.mail_sender import send_jira_email, build_report_html
+from app.webhook import send_webhook
 from app.analysis_cache import get_stats as cache_stats
 from app.scheduler import (
     start_scheduler, stop_scheduler, trigger_now,
@@ -281,6 +282,23 @@ async def api_send_jira(req: JiraRequest):
         log.error("Jira email failed: %s", e)
         raise HTTPException(500, str(e))
     return {"status": "sent"}
+
+
+# --- Webhook ---
+
+class WebhookRequest(BaseModel):
+    analyses: list[dict]
+    channel: Optional[str] = None
+
+@app.post("/api/send-webhook")
+async def api_send_webhook(req: WebhookRequest):
+    try:
+        result = await send_webhook(req.analyses, req.channel or "")
+        log.info("Webhook sent: %d analyses", len(req.analyses))
+        return result
+    except Exception as e:
+        log.error("Webhook failed: %s", e)
+        raise HTTPException(500, str(e))
 
 
 # --- Cron ---
