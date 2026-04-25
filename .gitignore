@@ -6,3 +6,4 @@ users.json
 datasources.json
 settings.json
 analysis_cache.json
+.secret_key
