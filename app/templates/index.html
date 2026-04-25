@@ -73,6 +73,8 @@ input[type="checkbox"]{accent-color:var(--accent)}
 .badge-new{background:var(--orange);color:#fff}
 .badge-rec{background:var(--border);color:var(--muted)}
 .badge-cached{background:rgba(34,197,94,.15);color:var(--green);border:1px solid var(--green);font-weight:600}
+.spark{display:inline-flex;align-items:flex-end;gap:1px;height:18px}
+.spark-bar{width:3px;background:var(--accent);border-radius:1px;min-height:1px}
 .fp-tag{font-family:monospace;font-size:.7rem;color:var(--muted);opacity:.7}
 
 /* Analysis */
@@ -165,6 +167,7 @@ input[type="checkbox"]{accent-color:var(--accent)}
       <th>Logger</th>
       <th>Mensaje</th>
       <th>Último</th>
+      <th>Trend</th>
       <th>Acciones</th>
     </tr></thead>
     <tbody id="errorBody"></tbody>
@@ -492,21 +495,27 @@ async function loadErrors() {
   const params = getFilterParams();
   if (!params) { toast('Selecciona un datasource', true); return; }
   const body = document.getElementById('errorBody');
-  body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem"><div class="spinner"></div> Consultando Elasticsearch...</td></tr>';
+  body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:2rem"><div class="spinner"></div> Consultando Elasticsearch...</td></tr>';
   try {
     const r = await apiFetch(`${API}/api/errors?${params}`);
     errorData = await r.json();
     renderErrors();
     document.getElementById('resultCount').textContent = `${errorData.length} grupos encontrados`;
   } catch(e) {
-    if (e.message !== 'auth') body.innerHTML = `<tr><td colspan="8" style="color:var(--red)">Error: ${e.message}</td></tr>`;
+    if (e.message !== 'auth') body.innerHTML = `<tr><td colspan="9" style="color:var(--red)">Error: ${e.message}</td></tr>`;
   }
+}
+
+function mkSparkline(data) {
+  if (!data.length) return '';
+  const mx = Math.max(...data, 1);
+  return '<span class="spark">' + data.map(v => `<span class="spark-bar" style="height:${Math.max(1,Math.round(v/mx*18))}px"></span>`).join('') + '</span>';
 }
 
 function renderErrors() {
   const body = document.getElementById('errorBody');
   if (!errorData.length) {
-    body.innerHTML = '<tr><td colspan="8" style="color:var(--muted);padding:2rem;text-align:center">No se encontraron errores</td></tr>';
+    body.innerHTML = '<tr><td colspan="9" style="color:var(--muted);padding:2rem;text-align:center">No se encontraron errores</td></tr>';
     document.getElementById('localFilter').style.display = 'none';
     return;
   }
@@ -523,6 +532,7 @@ function renderErrors() {
       <td style="font-size:.78rem">${esc(e.logger)}</td>
       <td style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.message)}">${esc(e.message?.substring(0,100))}</td>
       <td style="font-size:.78rem;color:var(--muted)">${new Date(e.timestamp).toLocaleString()}</td>
+      <td>${mkSparkline(e.trend||[])}</td>
       <td><button class="sm" onclick="analyzeSingle(${i})">🔍 Analizar</button></td>
     </tr>`;
   }).join('');

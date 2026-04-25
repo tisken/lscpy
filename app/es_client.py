@@ -97,6 +97,12 @@ def get_top_errors(
                             "size": 1,
                             "sort": [{f["timestamp"]: "desc"}],
                         }
+                    },
+                    "trend": {
+                        "date_histogram": {
+                            "field": f["timestamp"],
+                            "fixed_interval": f"{max(1, hours // 12)}h",
+                        }
                     }
                 },
             }
@@ -116,6 +122,8 @@ def get_top_errors(
         for part in f["message"].split("."):
             msg = msg.get(part, "") if isinstance(msg, dict) else ""
 
+        trend = [b["doc_count"] for b in bucket.get("trend", {}).get("buckets", [])]
+
         results.append({
             "count": bucket["doc_count"],
             "exception_class": exc_class,
@@ -127,6 +135,7 @@ def get_top_errors(
             "status": status["status"],
             "first_seen": status["first_seen"],
             "hit_count": status["hit_count"],
+            "trend": trend,
         })
     return results
 
