@@ -2,9 +2,29 @@
 
 Analiza errores de producción desde Elasticsearch, localiza el código fuente en Bitbucket y sugiere fixes usando LLM.
 
+## Features
+
+- **Multi-datasource**: Múltiples clusters Elasticsearch con config independiente
+- **Mapeo de campos configurable**: Adapta los nombres de campos ES a tu esquema
+- **Fingerprint + deduplicación**: Agrupa errores idénticos por hash del stacktrace
+- **Caché de análisis LLM**: No re-analiza errores ya vistos
+- **Rate limiting LLM**: Semáforo de concurrencia + delay entre llamadas
+- **Detección nuevo vs recurrente**: Marca errores como NUEVO o recurrente con first_seen
+- **Tendencia/sparkline**: Mini gráfico de tendencia por error
+- **Multi-repo Bitbucket**: Busca código fuente en múltiples repositorios
+- **Dual LLM**: Amazon Bedrock (Claude) + Ollama (Llama 3)
+- **Cron automático**: Pasos activables (buscar/analizar/enviar) con intervalo configurable
+- **Auth con roles**: admin (todo) y viewer (solo lectura), JWT + bcrypt
+- **Cambio de contraseña obligatorio** en primer login
+- **Cifrado de passwords**: Fernet en settings.json
+- **Notificaciones**: Email (Jira), Webhook/Slack
+- **Export CSV**
+- **Health check**: GET /api/health
+- **Logging estructurado**
+
 ## Requisitos
 
-- Python 3.11+
+- Python 3.9+
 - Elasticsearch 8.x
 - Bitbucket Cloud (con App Password)
 - **Opción A**: AWS credentials para Bedrock (Claude)
@@ -16,8 +36,6 @@ Analiza errores de producción desde Elasticsearch, localiza el código fuente e
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-# Editar .env con tus credenciales
 ```
 
 ## Ejecutar
@@ -26,34 +44,36 @@ cp .env.example .env
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Abrir http://localhost:8000
+Abrir http://localhost:8000 — Login: `admin` / `admin` (se pide cambiar en primer acceso)
 
 ## Uso
 
-1. Configura las horas y cantidad de errores a buscar
-2. Click en **Buscar errores** para consultar Elasticsearch
-3. Click en **Analizar** en un error individual o selecciona varios y usa **Analizar seleccionados**
-4. Revisa el análisis del LLM con el código fuente de Bitbucket
-5. Envía a Jira con el botón de email
+1. Ve a **Configuración** → añade un datasource (Elasticsearch)
+2. Configura LLM (Bedrock u Ollama), Bitbucket y SMTP/Webhook
+3. En **Errores** → selecciona datasource, configura filtros, busca errores
+4. Analiza errores individuales o en bulk
+5. Envía a Jira por email, Slack por webhook, o exporta CSV
+6. En **Cron** → activa el análisis automático por pasos
 
-## LLM Providers
+## Roles
 
-Cambia `LLM_PROVIDER` en `.env`:
+| Rol | Puede hacer |
+|-----|------------|
+| `admin` | Todo: config, datasources, cron, usuarios, análisis |
+| `viewer` | Ver errores, analizar, exportar CSV |
 
-- `bedrock` → Amazon Bedrock (Claude 3.5 Sonnet). Requiere AWS credentials configuradas.
-- `ollama` → Modelo local. Instala [Ollama](https://ollama.ai) y ejecuta `ollama pull llama3:8b`.
+## API Endpoints
 
-## Campos de Elasticsearch esperados
-
-La app busca estos campos en tus logs:
-
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| `level` | keyword | Nivel del log (ERROR) |
-| `@timestamp` | date | Timestamp del evento |
-| `message` | text | Mensaje del error |
-| `exception.class` | keyword | Clase de la excepción Java |
-| `exception.stacktrace` o `stack_trace` | text | Stacktrace completo |
-| `logger_name` | keyword | Logger Java (ej: com.app.MyService) |
-
-> Si tus campos tienen nombres diferentes, ajusta las queries en `app/es_client.py`.
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/api/health` | Health check (público) |
+| POST | `/api/auth/login` | Login |
+| GET | `/api/datasources` | Listar datasources |
+| GET | `/api/errors?ds=ID&hours=24` | Buscar errores |
+| POST | `/api/analyze` | Analizar un error |
+| POST | `/api/send-jira` | Enviar a Jira |
+| POST | `/api/send-webhook` | Enviar a Slack/webhook |
+| GET | `/api/settings` | Config completa (admin) |
+| GET/POST | `/api/cron/config` | Config cron |
+| POST | `/api/cron/trigger` | Ejecutar cron manualmente |
+| GET/POST/DELETE | `/api/users` | Gestión usuarios (admin) |
