@@ -312,6 +312,27 @@ async def api_send_webhook(req: WebhookRequest):
         raise HTTPException(500, str(e))
 
 
+# --- PDF Export ---
+
+class PdfRequest(BaseModel):
+    analyses: list[dict]
+
+@app.post("/api/export-pdf")
+async def api_export_pdf(req: PdfRequest):
+    from fastapi.responses import Response
+    try:
+        from app.pdf_report import generate_pdf
+        pdf_bytes = generate_pdf(req.analyses)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=lsc-report.pdf"},
+        )
+    except Exception as e:
+        log.error("PDF generation failed: %s", e)
+        raise HTTPException(500, str(e))
+
+
 # --- Cron ---
 
 @app.get("/api/cron/config")

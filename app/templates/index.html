@@ -179,6 +179,7 @@ input[type="checkbox"]{accent-color:var(--accent)}
     <button class="secondary" onclick="sendSelectedToJira()">📧 Enviar a Jira</button>
     <button class="secondary" onclick="sendSelectedToWebhook()">🔔 Webhook</button>
     <button class="secondary" onclick="exportCsv()">📥 CSV</button>
+    <button class="secondary" onclick="exportPdf()">📄 PDF</button>
     <span class="status-msg" id="bulkStatus"></span>
   </div>
 
@@ -931,6 +932,30 @@ function exportCsv() {
   a.download = `lsc-errors-${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   toast('📥 CSV descargado');
+}
+
+async function exportPdf() {
+  const indices = getSelectedIndices();
+  const analyses = indices.map(i => analysisCache[i]).filter(Boolean);
+  if (!analyses.length) {
+    if (!errorData.length) { toast('No hay datos', true); return; }
+    toast('Analiza errores primero para incluirlos en el PDF', true);
+    return;
+  }
+  toast('Generando PDF...');
+  try {
+    const r = await apiFetch(`${API}/api/export-pdf`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({analyses})
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `lsc-report-${new Date().toISOString().slice(0,10)}.pdf`;
+    a.click();
+    toast('📄 PDF descargado');
+  } catch(e) { if (e.message!=='auth') toast('Error PDF: '+e.message, true); }
 }
 
 /* ============ CRON ============ */
