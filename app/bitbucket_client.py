@@ -1,3 +1,4 @@
+from __future__ import annotations
 import re
 import httpx
 from app.settings_store import get_section

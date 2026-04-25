@@ -1,8 +1,10 @@
+from typing import Optional
+
 from contextlib import asynccontextmanager
 import logging
 import uuid
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -26,7 +28,7 @@ from app.scheduler import (
     get_cron_config, get_cron_status, update_cron_config,
 )
 
-logger = logging.getLogger("lsc.app")
+log = logging.getLogger("lsc.app")
 
 _PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/auth/change-password", "/api/health"}
 
@@ -60,7 +62,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
-    logger.info("LSC starting up")
+    log.info("LSC starting up")
     ensure_default_user()
     s = get_settings()
     update_cron_config({
@@ -73,13 +75,13 @@ async def lifespan(app: FastAPI):
         "step_send": s.cron_step_send,
     })
     start_scheduler()
-    logger.info("LSC ready")
+    log.info("LSC ready")
     yield
     stop_scheduler()
-    logger.info("LSC shutdown")
+    log.info("LSC shutdown")
 
 
-app = FastAPI(title="Log Source Checker", version="0.6.0", lifespan=lifespan)
+app = FastAPI(title="Log Source Checker", version="0.7.0", lifespan=lifespan)
 app.add_middleware(AuthMiddleware)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -89,18 +91,14 @@ templates = Jinja2Templates(directory="app/templates")
 
 @app.get("/api/health")
 async def api_health():
-    """Health check: verifica conectividad a datasources configurados."""
     datasources = list_datasources()
     ds_status = {}
     for ds in datasources:
         ds_status[ds["id"]] = test_connection(ds["id"])
-
     llm_cfg = get_section("llm")
     smtp_cfg = get_section("smtp")
-
     return {
-        "status": "ok",
-        "version": app.version,
+        "status": "ok", "version": app.version,
         "datasources": ds_status,
         "llm_provider": llm_cfg.get("provider", "unknown"),
         "smtp_configured": bool(smtp_cfg.get("host")),
@@ -124,9 +122,9 @@ class LoginRequest(BaseModel):
 async def api_login(req: LoginRequest):
     user = authenticate(req.username, req.password)
     if not user:
-        logger.warning("Failed login attempt for user: %s", req.username)
+        log.warning("Failed login attempt for user: %s", req.username)
         raise HTTPException(401, "Credenciales incorrectas")
-    logger.info("User logged in: %s", req.username)
+    log.info("User logged in: %s", req.username)
     token = create_token(user["username"], user["must_change"])
     return {"token": token, "username": user["username"], "must_change": user["must_change"]}
 
@@ -146,7 +144,7 @@ async def api_change_password(req: ChangePasswordRequest, request: Request):
         raise HTTPException(401, "Not authenticated")
     if not change_password(user["username"], req.new_password):
         raise HTTPException(400, "Contraseña inválida (mín. 6 caracteres)")
-    logger.info("Password changed for user: %s", user["username"])
+    log.info("Password changed for user: %s", user["username"])
     new_token = create_token(user["username"], must_change=False)
     return {"token": new_token, "username": user["username"]}
 
@@ -171,15 +169,13 @@ async def index(request: Request):
 async def api_get_settings():
     return get_all()
 
-
 @app.get("/api/settings/{section}")
 async def api_get_section(section: str):
     return get_section(section)
 
-
 @app.post("/api/settings/{section}")
 async def api_update_section(section: str, payload: dict):
-    logger.info("Settings updated: section=%s", section)
+    log.info("Settings updated: section=%s", section)
     return update_section(section, payload)
 
 
@@ -189,13 +185,11 @@ async def api_update_section(section: str, payload: dict):
 async def api_list_datasources():
     return list_datasources()
 
-
 @app.post("/api/datasources")
 async def api_create_datasource(payload: dict):
     ds_id = payload.pop("id", None) or str(uuid.uuid4())[:8]
-    logger.info("Datasource created: %s", ds_id)
+    log.info("Datasource created: %s", ds_id)
     return save_datasource(ds_id, payload)
-
 
 @app.put("/api/datasources/{ds_id}")
 async def api_update_datasource(ds_id: str, payload: dict):
@@ -203,31 +197,30 @@ async def api_update_datasource(ds_id: str, payload: dict):
         raise HTTPException(404, "Datasource not found")
     return save_datasource(ds_id, payload)
 
-
 @app.delete("/api/datasources/{ds_id}")
 async def api_delete_datasource(ds_id: str):
     if not delete_datasource(ds_id):
         raise HTTPException(404, "Datasource not found")
-    logger.info("Datasource deleted: %s", ds_id)
+    log.info("Datasource deleted: %s", ds_id)
     return {"status": "deleted"}
-
 
 @app.get("/api/datasources/{ds_id}/test")
 async def api_test_datasource(ds_id: str):
     return test_connection(ds_id)
 
 
-# --- Errors ---
+# --- Errors (logger como alias de logger_filter) ---
 
 @app.get("/api/errors")
 async def api_errors(
     ds: str, hours: int = 24, size: int = 50,
-    message: str = "", logger_filter: str = "", exception: str = "",
+    message: str = "",
+    logger: str = Query("", alias="logger"),
+    exception: str = "",
 ):
     if not ds:
         raise HTTPException(400, "Missing datasource id")
-    return get_top_errors(ds_id=ds, hours=hours, size=size, message=message, logger=logger_filter, exception=exception)
-
+    return get_top_errors(ds_id=ds, hours=hours, size=size, message=message, logger=logger, exception=exception)
 
 @app.get("/api/errors/{exception_class}/{logger_name}")
 async def api_error_detail(exception_class: str, logger_name: str, ds: str, hours: int = 24):
@@ -250,12 +243,10 @@ async def api_analyze(payload: dict):
     llm_result = await analyze_error(error, snippet)
     return {"error": error, "snippet": snippet, "llm_result": llm_result, "frames": frames}
 
-
 class BulkAnalyzeRequest(BaseModel):
     datasource_id: str
     hours: int = 24
     size: int = 10
-
 
 @app.post("/api/analyze/bulk")
 async def api_analyze_bulk(req: BulkAnalyzeRequest):
@@ -278,17 +269,16 @@ async def api_analyze_bulk(req: BulkAnalyzeRequest):
 class JiraRequest(BaseModel):
     subject: str
     analyses: list[dict]
-    to: str | None = None
-
+    to: Optional[str] = None
 
 @app.post("/api/send-jira")
 async def api_send_jira(req: JiraRequest):
     html = build_report_html(req.analyses)
     try:
         send_jira_email(req.subject, html, req.to)
-        logger.info("Jira email sent: %s", req.subject)
+        log.info("Jira email sent: %s", req.subject)
     except Exception as e:
-        logger.error("Jira email failed: %s", e)
+        log.error("Jira email failed: %s", e)
         raise HTTPException(500, str(e))
     return {"status": "sent"}
 
@@ -299,19 +289,16 @@ async def api_send_jira(req: JiraRequest):
 async def api_cron_config():
     return get_cron_config()
 
-
 @app.post("/api/cron/config")
 async def api_cron_update(payload: dict):
-    logger.info("Cron config updated")
+    log.info("Cron config updated")
     return update_cron_config(payload)
-
 
 @app.get("/api/cron/status")
 async def api_cron_status():
     return get_cron_status()
 
-
 @app.post("/api/cron/trigger")
 async def api_cron_trigger():
-    logger.info("Cron manually triggered")
+    log.info("Cron manually triggered")
     return await trigger_now()

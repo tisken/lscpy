@@ -5,132 +5,168 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Log Source Checker</title>
 <style>
-  :root { --bg: #0f172a; --card: #1e293b; --border: #334155; --accent: #3b82f6; --red: #ef4444; --green: #22c55e; --yellow: #eab308; --text: #e2e8f0; --muted: #94a3b8; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
-  .header { background: var(--card); border-bottom: 1px solid var(--border); padding: 1rem 2rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-  .header h1 { font-size: 1.3rem; }
-  .header h1 span { color: var(--accent); }
-  .controls { display: flex; gap: .5rem; margin-left: auto; align-items: center; flex-wrap: wrap; }
-  .controls label { font-size: .85rem; color: var(--muted); }
-  .controls input, .controls select { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: .4rem .6rem; border-radius: 6px; font-size: .85rem; }
-  button { background: var(--accent); color: #fff; border: none; padding: .5rem 1rem; border-radius: 6px; cursor: pointer; font-size: .85rem; transition: opacity .2s; }
-  button:hover { opacity: .85; }
-  button:disabled { opacity: .4; cursor: not-allowed; }
-  button.secondary { background: var(--border); }
-  button.danger { background: var(--red); }
-  .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+:root{--bg:#0f172a;--card:#1e293b;--border:#334155;--accent:#3b82f6;--red:#ef4444;--green:#22c55e;--yellow:#eab308;--orange:#f97316;--text:#e2e8f0;--muted:#94a3b8}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
-  /* Filtros */
-  .filter-bar { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1rem; overflow: hidden; }
-  .filter-toggle { display: flex; align-items: center; justify-content: space-between; padding: .6rem 1rem; cursor: pointer; user-select: none; }
-  .filter-toggle:hover { background: rgba(59,130,246,.08); }
-  .filter-toggle h3 { font-size: .9rem; font-weight: 600; color: var(--muted); }
-  .filter-toggle .arrow { transition: transform .2s; font-size: .75rem; color: var(--muted); }
-  .filter-toggle .arrow.open { transform: rotate(180deg); }
-  .filter-body { display: none; padding: .8rem 1rem; border-top: 1px solid var(--border); }
-  .filter-body.open { display: block; }
-  .filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .6rem; }
-  .filter-field label { display: block; font-size: .75rem; color: var(--muted); margin-bottom: .25rem; }
-  .filter-field input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: .4rem .6rem; border-radius: 6px; font-size: .85rem; }
-  .filter-actions { display: flex; gap: .5rem; margin-top: .6rem; align-items: center; }
-  .filter-actions .result-count { font-size: .8rem; color: var(--muted); margin-left: auto; }
+/* Header */
+.header{background:var(--card);border-bottom:1px solid var(--border);padding:.8rem 1.5rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.header h1{font-size:1.2rem;white-space:nowrap}
+.header h1 span{color:var(--accent)}
+.hdr-right{display:flex;gap:.5rem;margin-left:auto;align-items:center;flex-wrap:wrap}
+.hdr-right label{font-size:.8rem;color:var(--muted)}
+.hdr-right select,.hdr-right input{background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.35rem .5rem;border-radius:6px;font-size:.8rem}
+.hdr-right select{min-width:140px}
+button{background:var(--accent);color:#fff;border:none;padding:.45rem .9rem;border-radius:6px;cursor:pointer;font-size:.8rem;transition:opacity .2s}
+button:hover{opacity:.85}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.secondary{background:var(--border)}
+button.danger{background:var(--red)}
+button.sm{padding:.3rem .6rem;font-size:.75rem}
+button.logout{background:transparent;border:1px solid var(--border);color:var(--muted);padding:.35rem .7rem}
 
-  /* Filtro local rápido */
-  .local-filter { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
-  .local-filter input { flex: 1; max-width: 400px; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: .4rem .6rem; border-radius: 6px; font-size: .85rem; }
-  .local-filter span { font-size: .8rem; color: var(--muted); }
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:var(--card);padding:0 1.5rem}
+.tab{padding:.7rem 1.2rem;font-size:.85rem;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .2s;user-select:none}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none}
+.tab-content.active{display:block}
 
-  .error-table { width: 100%; border-collapse: collapse; }
-  .error-table th, .error-table td { padding: .6rem .8rem; text-align: left; border-bottom: 1px solid var(--border); font-size: .85rem; }
-  .error-table th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--bg); }
-  .error-table tr:hover { background: var(--card); }
-  .error-table tr.hidden-row { display: none; }
-  .count-badge { background: var(--red); color: #fff; padding: .15rem .5rem; border-radius: 99px; font-size: .75rem; font-weight: 700; }
-  .analysis-panel { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-top: 1.5rem; padding: 1.5rem; display: none; }
-  .analysis-panel.visible { display: block; }
-  .analysis-panel h3 { margin-bottom: 1rem; font-size: 1rem; }
-  .snippet-box { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 1rem; overflow-x: auto; font-family: 'Fira Code', monospace; font-size: .8rem; line-height: 1.6; white-space: pre; margin: .8rem 0; }
-  .snippet-box .highlight { color: var(--red); font-weight: 700; }
-  .llm-result { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin-top: .8rem; white-space: pre-wrap; font-size: .85rem; line-height: 1.6; }
-  .frames-list { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0; }
-  .frame-tag { background: var(--bg); border: 1px solid var(--border); padding: .2rem .5rem; border-radius: 4px; font-size: .75rem; font-family: monospace; }
-  .frame-tag a { color: var(--accent); text-decoration: none; }
-  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .toast { position: fixed; bottom: 2rem; right: 2rem; background: var(--green); color: #000; padding: .8rem 1.2rem; border-radius: 8px; font-size: .85rem; display: none; z-index: 999; }
-  .toast.error { background: var(--red); color: #fff; }
-  .jira-bar { display: flex; gap: .5rem; align-items: center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
-  .jira-bar input { flex: 1; }
-  .bulk-bar { display: flex; gap: .5rem; align-items: center; margin-top: 1rem; }
-  .status-msg { font-size: .8rem; color: var(--muted); margin-left: .5rem; }
-  .checkbox-col { width: 30px; text-align: center; }
-  input[type="checkbox"] { accent-color: var(--accent); }
+.container{max-width:1400px;margin:0 auto;padding:1.2rem 1.5rem}
+
+/* Collapsible panels */
+.panel{background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:1rem;overflow:hidden}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:.6rem 1rem;cursor:pointer;user-select:none}
+.panel-head:hover{background:rgba(59,130,246,.06)}
+.panel-head h3{font-size:.85rem;font-weight:600;color:var(--muted)}
+.panel-head .arrow{transition:transform .2s;font-size:.7rem;color:var(--muted)}
+.panel-head .arrow.open{transform:rotate(180deg)}
+.panel-body{display:none;padding:.8rem 1rem;border-top:1px solid var(--border)}
+.panel-body.open{display:block}
+
+/* Forms */
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.6rem}
+.ff label{display:block;font-size:.72rem;color:var(--muted);margin-bottom:.2rem}
+.ff input,.ff select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.4rem .6rem;border-radius:6px;font-size:.82rem}
+.ff input[type="checkbox"]{width:auto;accent-color:var(--accent)}
+.fa{display:flex;gap:.5rem;margin-top:.6rem;align-items:center}
+.fa .rc{font-size:.78rem;color:var(--muted);margin-left:auto}
+
+/* Local filter */
+.lf{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem}
+.lf input{flex:1;max-width:350px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.35rem .6rem;border-radius:6px;font-size:.82rem}
+.lf span{font-size:.78rem;color:var(--muted)}
+
+/* Table */
+.et{width:100%;border-collapse:collapse}
+.et th,.et td{padding:.5rem .7rem;text-align:left;border-bottom:1px solid var(--border);font-size:.82rem}
+.et th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--bg)}
+.et tr:hover{background:var(--card)}
+.et tr.hidden-row{display:none}
+.cb{width:28px;text-align:center}
+input[type="checkbox"]{accent-color:var(--accent)}
+
+/* Badges */
+.badge{padding:.12rem .45rem;border-radius:99px;font-size:.7rem;font-weight:700;display:inline-block}
+.badge-red{background:var(--red);color:#fff}
+.badge-new{background:var(--orange);color:#fff}
+.badge-rec{background:var(--border);color:var(--muted)}
+.badge-cached{background:rgba(34,197,94,.15);color:var(--green);border:1px solid var(--green);font-weight:600}
+.fp-tag{font-family:monospace;font-size:.7rem;color:var(--muted);opacity:.7}
+
+/* Analysis */
+.ap{background:var(--card);border:1px solid var(--border);border-radius:8px;margin-top:1.2rem;padding:1.2rem;display:none}
+.ap.visible{display:block}
+.ap h3{margin-bottom:.8rem;font-size:.95rem}
+.snippet-box{background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:.8rem;overflow-x:auto;font-family:'Fira Code',monospace;font-size:.78rem;line-height:1.6;white-space:pre;margin:.6rem 0}
+.snippet-box .hl{color:var(--red);font-weight:700}
+.llm-r{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:.8rem;margin-top:.6rem;white-space:pre-wrap;font-size:.82rem;line-height:1.6}
+.frames-list{display:flex;flex-wrap:wrap;gap:.3rem;margin:.4rem 0}
+.frame-tag{background:var(--bg);border:1px solid var(--border);padding:.15rem .4rem;border-radius:4px;font-size:.72rem;font-family:monospace}
+.frame-tag a{color:var(--accent);text-decoration:none}
+.jira-bar{display:flex;gap:.5rem;align-items:center;margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--border)}
+.jira-bar input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.4rem .6rem;border-radius:6px;font-size:.82rem}
+.bulk-bar{display:flex;gap:.5rem;align-items:center;margin-top:.8rem}
+.status-msg{font-size:.78rem;color:var(--muted);margin-left:.5rem}
+
+/* Spinner & Toast */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:2rem;right:2rem;background:var(--green);color:#000;padding:.7rem 1rem;border-radius:8px;font-size:.82rem;display:none;z-index:999}
+.toast.error{background:var(--red);color:#fff}
+
+/* Config placeholder */
+.cfg-placeholder{color:var(--muted);text-align:center;padding:3rem;font-size:.9rem}
 </style>
 </head>
 <body>
 
+<!-- HEADER -->
 <div class="header">
   <h1>🔍 Log <span>Source</span> Checker</h1>
-  <div class="controls">
+  <div class="hdr-right">
+    <label>Datasource:</label>
+    <select id="dsSelect" onchange="onDsChange()"><option value="">-- cargando --</option></select>
     <label>Horas:</label>
-    <input type="number" id="hours" value="24" min="1" max="168" style="width:60px">
+    <input type="number" id="hours" value="24" min="1" max="168" style="width:55px">
     <label>Top:</label>
-    <input type="number" id="size" value="50" min="1" max="200" style="width:60px">
+    <input type="number" id="size" value="50" min="1" max="200" style="width:55px">
     <button onclick="loadErrors()">Buscar errores</button>
     <button class="secondary" onclick="analyzeSelected()">Analizar seleccionados</button>
+    <button class="logout" onclick="doLogout()">Salir</button>
   </div>
 </div>
 
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active" data-tab="tabErrors">📋 Errores</div>
+  <div class="tab" data-tab="tabConfig">⚙️ Configuración</div>
+  <div class="tab" data-tab="tabCron">🕐 Cron</div>
+</div>
+
+<!-- TAB: ERRORES -->
+<div class="tab-content active" id="tabErrors">
 <div class="container">
 
-  <!-- Panel de filtros ES -->
-  <div class="filter-bar">
-    <div class="filter-toggle" onclick="toggleFilters()">
+  <!-- Filtros ES -->
+  <div class="panel">
+    <div class="panel-head" onclick="togglePanel(this)">
       <h3>🔎 Filtros de búsqueda</h3>
-      <span class="arrow" id="filterArrow">▼</span>
+      <span class="arrow">▼</span>
     </div>
-    <div class="filter-body" id="filterBody">
-      <div class="filter-grid">
-        <div class="filter-field">
-          <label>Mensaje (cliente, producto, texto...)</label>
-          <input type="text" id="filterMessage" placeholder='ej: "PaymentService" o "timeout"'>
-        </div>
-        <div class="filter-field">
-          <label>Logger (clase Java)</label>
-          <input type="text" id="filterLogger" placeholder="ej: com.app.billing">
-        </div>
-        <div class="filter-field">
-          <label>Excepción</label>
-          <input type="text" id="filterException" placeholder="ej: NullPointerException">
-        </div>
+    <div class="panel-body">
+      <div class="fg">
+        <div class="ff"><label>Mensaje (cliente, producto...)</label><input type="text" id="filterMessage" placeholder='ej: "PaymentService"'></div>
+        <div class="ff"><label>Logger (clase Java)</label><input type="text" id="filterLogger" placeholder="ej: com.app.billing"></div>
+        <div class="ff"><label>Excepción</label><input type="text" id="filterException" placeholder="ej: NullPointerException"></div>
       </div>
-      <div class="filter-actions">
+      <div class="fa">
         <button onclick="loadErrors()">Aplicar filtros</button>
         <button class="secondary" onclick="clearFilters()">Limpiar</button>
-        <span class="result-count" id="resultCount"></span>
+        <span class="rc" id="resultCount"></span>
       </div>
     </div>
   </div>
 
-  <!-- Filtro local rápido sobre resultados ya cargados -->
-  <div class="local-filter" id="localFilter" style="display:none">
+  <!-- Filtro local -->
+  <div class="lf" id="localFilter" style="display:none">
     <input type="text" id="localSearch" placeholder="Filtrar en resultados cargados..." oninput="applyLocalFilter()">
     <span id="localCount"></span>
   </div>
 
-  <table class="error-table">
-    <thead>
-      <tr>
-        <th class="checkbox-col"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
-        <th>Count</th>
-        <th>Exception</th>
-        <th>Logger</th>
-        <th>Mensaje</th>
-        <th>Último</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
+  <!-- Tabla errores -->
+  <table class="et">
+    <thead><tr>
+      <th class="cb"><input type="checkbox" id="selectAll" onchange="toggleAll(this)"></th>
+      <th>Count</th>
+      <th>Estado</th>
+      <th>Exception</th>
+      <th>Logger</th>
+      <th>Mensaje</th>
+      <th>Último</th>
+      <th>Acciones</th>
+    </tr></thead>
     <tbody id="errorBody"></tbody>
   </table>
 
@@ -141,16 +177,34 @@
     <span class="status-msg" id="bulkStatus"></span>
   </div>
 
-  <div class="analysis-panel" id="analysisPanel">
+  <!-- Panel análisis -->
+  <div class="ap" id="analysisPanel">
     <h3 id="analysisTitle">Análisis</h3>
+    <div id="analysisMeta"></div>
     <div id="framesContainer"></div>
     <div id="snippetContainer"></div>
-    <div class="llm-result" id="llmResult"></div>
+    <div class="llm-r" id="llmResult"></div>
     <div class="jira-bar">
       <input type="text" id="jiraSubject" placeholder="Asunto del ticket Jira...">
       <button onclick="sendCurrentToJira()">📧 Enviar a Jira</button>
     </div>
   </div>
+
+</div>
+</div>
+
+<!-- TAB: CONFIGURACIÓN (placeholder para tarea 3) -->
+<div class="tab-content" id="tabConfig">
+<div class="container">
+  <div class="cfg-placeholder">⚙️ Cargando configuración...</div>
+</div>
+</div>
+
+<!-- TAB: CRON (placeholder para tarea 4) -->
+<div class="tab-content" id="tabCron">
+<div class="container">
+  <div class="cfg-placeholder">🕐 Cargando cron...</div>
+</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -159,85 +213,137 @@
 const API = '';
 let errorData = [];
 let analysisCache = {};
+let datasources = [];
 
-function toast(msg, isError = false) {
+/* ---- Init ---- */
+document.addEventListener('DOMContentLoaded', () => {
+  loadDatasources();
+  initTabs();
+});
+
+/* ---- Tabs ---- */
+function initTabs() {
+  document.querySelectorAll('.tab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById(t.dataset.tab).classList.add('active');
+    });
+  });
+}
+
+/* ---- Datasources ---- */
+async function loadDatasources() {
+  try {
+    const r = await apiFetch('/api/datasources');
+    datasources = await r.json();
+    const sel = document.getElementById('dsSelect');
+    if (!datasources.length) {
+      sel.innerHTML = '<option value="">-- sin datasources --</option>';
+      return;
+    }
+    sel.innerHTML = datasources.map(d => `<option value="${d.id}">${esc(d.name)} (${d.id})</option>`).join('');
+  } catch(e) { console.error('Error loading datasources', e); }
+}
+function onDsChange() { /* reset tabla */ document.getElementById('errorBody').innerHTML = ''; }
+function getDs() { return document.getElementById('dsSelect').value; }
+
+/* ---- Auth helpers ---- */
+async function apiFetch(url, opts = {}) {
+  const r = await fetch(url, opts);
+  if (r.status === 401) { window.location.href = '/login'; throw new Error('auth'); }
+  return r;
+}
+async function doLogout() {
+  await fetch(`${API}/api/auth/logout`, {method:'POST'});
+  document.cookie = 'lsc_token=; path=/; max-age=0';
+  window.location.href = '/login';
+}
+
+/* ---- Utils ---- */
+function toast(msg, isErr=false) {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast' + (isError ? ' error' : '');
-  t.style.display = 'block';
-  setTimeout(() => t.style.display = 'none', 3000);
+  t.textContent = msg; t.className = 'toast' + (isErr ? ' error' : '');
+  t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 3000);
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s||''; return d.innerHTML; }
+function togglePanel(el) {
+  el.querySelector('.arrow').classList.toggle('open');
+  el.nextElementSibling.classList.toggle('open');
 }
 
-/* --- Filtros --- */
-function toggleFilters() {
-  const body = document.getElementById('filterBody');
-  const arrow = document.getElementById('filterArrow');
-  body.classList.toggle('open');
-  arrow.classList.toggle('open');
-}
-
+/* ---- Filtros ---- */
 function clearFilters() {
   document.getElementById('filterMessage').value = '';
   document.getElementById('filterLogger').value = '';
   document.getElementById('filterException').value = '';
 }
-
 function getFilterParams() {
-  const params = new URLSearchParams();
-  params.set('hours', document.getElementById('hours').value);
-  params.set('size', document.getElementById('size').value);
+  const p = new URLSearchParams();
+  const ds = getDs();
+  if (!ds) return null;
+  p.set('ds', ds);
+  p.set('hours', document.getElementById('hours').value);
+  p.set('size', document.getElementById('size').value);
   const msg = document.getElementById('filterMessage').value.trim();
   const log = document.getElementById('filterLogger').value.trim();
   const exc = document.getElementById('filterException').value.trim();
-  if (msg) params.set('message', msg);
-  if (log) params.set('logger', log);
-  if (exc) params.set('exception', exc);
-  return params.toString();
+  if (msg) p.set('message', msg);
+  if (log) p.set('logger', log);
+  if (exc) p.set('exception', exc);
+  return p.toString();
 }
-
 function applyLocalFilter() {
   const term = document.getElementById('localSearch').value.toLowerCase();
-  const rows = document.querySelectorAll('#errorBody tr');
-  let visible = 0;
-  rows.forEach(row => {
-    const text = row.textContent.toLowerCase();
-    const match = !term || text.includes(term);
+  let vis = 0;
+  document.querySelectorAll('#errorBody tr').forEach(row => {
+    const match = !term || row.textContent.toLowerCase().includes(term);
     row.classList.toggle('hidden-row', !match);
-    if (match) visible++;
+    if (match) vis++;
   });
-  document.getElementById('localCount').textContent = `${visible} / ${errorData.length} visibles`;
+  document.getElementById('localCount').textContent = `${vis} / ${errorData.length} visibles`;
 }
 
-/* --- Carga de errores --- */
+/* ---- Errores ---- */
 async function loadErrors() {
+  const params = getFilterParams();
+  if (!params) { toast('Selecciona un datasource', true); return; }
   const body = document.getElementById('errorBody');
-  body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem"><div class="spinner"></div> Consultando Elasticsearch...</td></tr>';
+  body.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem"><div class="spinner"></div> Consultando Elasticsearch...</td></tr>';
   try {
-    const resp = await fetch(`${API}/api/errors?${getFilterParams()}`);
-    errorData = await resp.json();
+    const r = await apiFetch(`${API}/api/errors?${params}`);
+    errorData = await r.json();
     renderErrors();
-    document.getElementById('resultCount').textContent = `${errorData.length} grupos de errores encontrados`;
-  } catch (e) {
-    body.innerHTML = `<tr><td colspan="7" style="color:var(--red)">Error: ${e.message}</td></tr>`;
+    document.getElementById('resultCount').textContent = `${errorData.length} grupos encontrados`;
+  } catch(e) {
+    if (e.message !== 'auth') body.innerHTML = `<tr><td colspan="8" style="color:var(--red)">Error: ${e.message}</td></tr>`;
   }
 }
 
 function renderErrors() {
   const body = document.getElementById('errorBody');
   if (!errorData.length) {
-    body.innerHTML = '<tr><td colspan="7" style="color:var(--muted);padding:2rem;text-align:center">No se encontraron errores con los filtros seleccionados</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" style="color:var(--muted);padding:2rem;text-align:center">No se encontraron errores</td></tr>';
     document.getElementById('localFilter').style.display = 'none';
     return;
   }
-  body.innerHTML = errorData.map((e, i) => `<tr>
-    <td class="checkbox-col"><input type="checkbox" class="row-check" data-idx="${i}" onchange="updateSelected()"></td>
-    <td><span class="count-badge">${e.count.toLocaleString()}</span></td>
-    <td style="font-family:monospace;font-size:.8rem">${esc(e.exception_class)}</td>
-    <td style="font-size:.8rem">${esc(e.logger)}</td>
-    <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.message)}">${esc(e.message?.substring(0, 120))}</td>
-    <td style="font-size:.8rem;color:var(--muted)">${new Date(e.timestamp).toLocaleString()}</td>
-    <td><button onclick="analyzeSingle(${i})">🔍 Analizar</button></td>
-  </tr>`).join('');
+  body.innerHTML = errorData.map((e, i) => {
+    const statusBadge = e.status === 'new'
+      ? '<span class="badge badge-new">NUEVO</span>'
+      : `<span class="badge badge-rec">×${e.hit_count || '?'}</span>`;
+    const fpTag = e.fingerprint ? `<span class="fp-tag" title="Fingerprint: ${e.fingerprint}">#${e.fingerprint.substring(0,6)}</span>` : '';
+    return `<tr>
+      <td class="cb"><input type="checkbox" class="row-check" data-idx="${i}" onchange="updateSelected()"></td>
+      <td><span class="badge badge-red">${e.count.toLocaleString()}</span></td>
+      <td>${statusBadge} ${fpTag}</td>
+      <td style="font-family:monospace;font-size:.78rem">${esc(e.exception_class)}</td>
+      <td style="font-size:.78rem">${esc(e.logger)}</td>
+      <td style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.message)}">${esc(e.message?.substring(0,100))}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${new Date(e.timestamp).toLocaleString()}</td>
+      <td><button class="sm" onclick="analyzeSingle(${i})">🔍 Analizar</button></td>
+    </tr>`;
+  }).join('');
   document.getElementById('bulkBar').style.display = 'flex';
   document.getElementById('localFilter').style.display = 'flex';
   document.getElementById('localSearch').value = '';
@@ -245,48 +351,50 @@ function renderErrors() {
   updateSelected();
 }
 
-function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
-
 function toggleAll(cb) {
   document.querySelectorAll('.row-check').forEach(c => { if (!c.closest('tr').classList.contains('hidden-row')) c.checked = cb.checked; });
   updateSelected();
 }
-
 function updateSelected() {
-  const count = document.querySelectorAll('.row-check:checked').length;
-  document.getElementById('selectedCount').textContent = `${count} seleccionados`;
+  document.getElementById('selectedCount').textContent = `${document.querySelectorAll('.row-check:checked').length} seleccionados`;
 }
-
 function getSelectedIndices() {
   return [...document.querySelectorAll('.row-check:checked')].map(c => parseInt(c.dataset.idx));
 }
 
+/* ---- Análisis ---- */
 async function analyzeSingle(idx) {
   const panel = document.getElementById('analysisPanel');
   const error = errorData[idx];
   panel.classList.add('visible');
   document.getElementById('analysisTitle').innerHTML = `<div class="spinner"></div> Analizando: ${esc(error.exception_class)}`;
+  document.getElementById('analysisMeta').innerHTML = '';
   document.getElementById('framesContainer').innerHTML = '';
   document.getElementById('snippetContainer').innerHTML = '';
   document.getElementById('llmResult').textContent = '';
   document.getElementById('jiraSubject').value = `[ERROR] ${error.exception_class} in ${error.logger} (${error.count}x)`;
-
   try {
-    const resp = await fetch(`${API}/api/analyze`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+    const r = await apiFetch(`${API}/api/analyze`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({error})
     });
-    const data = await resp.json();
+    const data = await r.json();
     analysisCache[idx] = data;
     renderAnalysis(data, error);
-  } catch (e) {
-    document.getElementById('llmResult').textContent = 'Error: ' + e.message;
+  } catch(e) {
+    if (e.message !== 'auth') document.getElementById('llmResult').textContent = 'Error: ' + e.message;
   }
 }
 
 function renderAnalysis(data, error) {
   document.getElementById('analysisTitle').textContent = `Análisis: ${error.exception_class}`;
+
+  // Meta: cached, fingerprint, status
+  let meta = '';
+  if (data.llm_result?.cached) meta += '<span class="badge badge-cached">⚡ Desde caché</span> ';
+  if (error.fingerprint) meta += `<span class="fp-tag">Fingerprint: ${error.fingerprint}</span> `;
+  if (error.first_seen) meta += `<span style="font-size:.75rem;color:var(--muted)">Primera vez: ${new Date(error.first_seen).toLocaleString()}</span>`;
+  document.getElementById('analysisMeta').innerHTML = meta;
 
   if (data.frames?.length) {
     document.getElementById('framesContainer').innerHTML = '<div class="frames-list">' +
@@ -299,22 +407,22 @@ function renderAnalysis(data, error) {
   }
 
   if (data.snippet) {
-    const highlighted = data.snippet.snippet.replace(/^(>>>.*$)/gm, '<span class="highlight">$1</span>');
+    const highlighted = data.snippet.snippet.replace(/^(>>>.*$)/gm, '<span class="hl">$1</span>');
     document.getElementById('snippetContainer').innerHTML =
       `<div class="snippet-box">${highlighted}</div>
-       <a href="${data.snippet.bb_url}" target="_blank" style="color:var(--accent);font-size:.8rem">Abrir en Bitbucket →</a>`;
+       <a href="${data.snippet.bb_url}" target="_blank" style="color:var(--accent);font-size:.78rem">Abrir en Bitbucket →</a>`;
   } else {
-    document.getElementById('snippetContainer').innerHTML = '<p style="color:var(--muted);font-size:.85rem">No se pudo obtener el código fuente de Bitbucket</p>';
+    document.getElementById('snippetContainer').innerHTML = '<p style="color:var(--muted);font-size:.82rem">No se pudo obtener el código fuente de Bitbucket</p>';
   }
 
-  document.getElementById('llmResult').innerHTML = formatMarkdown(data.llm_result?.analysis || 'Sin resultado');
+  document.getElementById('llmResult').innerHTML = fmtMd(data.llm_result?.analysis || 'Sin resultado');
 }
 
-function formatMarkdown(text) {
+function fmtMd(text) {
   return esc(text)
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/`([^`]+)`/g, '<code style="background:var(--bg);padding:.1rem .3rem;border-radius:3px">$1</code>')
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre style="background:#0d1117;padding:.8rem;border-radius:4px;margin:.5rem 0;overflow-x:auto">$2</pre>');
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre style="background:#0d1117;padding:.7rem;border-radius:4px;margin:.4rem 0;overflow-x:auto">$2</pre>');
 }
 
 async function analyzeSelected() {
@@ -322,12 +430,13 @@ async function analyzeSelected() {
   if (!indices.length) { toast('Selecciona al menos un error', true); return; }
   const status = document.getElementById('bulkStatus');
   for (let i = 0; i < indices.length; i++) {
-    status.innerHTML = `<div class="spinner"></div> Analizando ${i + 1}/${indices.length}...`;
+    status.innerHTML = `<div class="spinner"></div> Analizando ${i+1}/${indices.length}...`;
     await analyzeSingle(indices[i]);
   }
   status.textContent = `✅ ${indices.length} errores analizados`;
 }
 
+/* ---- Jira ---- */
 async function sendCurrentToJira() {
   const subject = document.getElementById('jiraSubject').value;
   if (!subject) { toast('Escribe un asunto', true); return; }
@@ -335,25 +444,22 @@ async function sendCurrentToJira() {
   if (!cached.length) { toast('Analiza un error primero', true); return; }
   await doSendJira(subject, [cached[cached.length - 1]]);
 }
-
 async function sendSelectedToJira() {
   const indices = getSelectedIndices();
   const analyses = indices.map(i => analysisCache[i]).filter(Boolean);
   if (!analyses.length) { toast('Analiza los errores seleccionados primero', true); return; }
   await doSendJira(`Error Report - ${analyses.length} issues`, analyses);
 }
-
 async function doSendJira(subject, analyses) {
   try {
-    const resp = await fetch(`${API}/api/send-jira`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+    const r = await apiFetch(`${API}/api/send-jira`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({subject, analyses})
     });
-    if (!resp.ok) throw new Error((await resp.json()).detail);
+    if (!r.ok) throw new Error((await r.json()).detail);
     toast('📧 Email enviado a Jira');
-  } catch (e) {
-    toast('Error enviando: ' + e.message, true);
+  } catch(e) {
+    if (e.message !== 'auth') toast('Error enviando: ' + e.message, true);
   }
 }
 </script>
