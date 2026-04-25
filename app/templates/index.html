@@ -193,10 +193,115 @@ input[type="checkbox"]{accent-color:var(--accent)}
 </div>
 </div>
 
-<!-- TAB: CONFIGURACIÓN (placeholder para tarea 3) -->
+<!-- TAB: CONFIGURACIÓN -->
 <div class="tab-content" id="tabConfig">
 <div class="container">
-  <div class="cfg-placeholder">⚙️ Cargando configuración...</div>
+
+  <!-- Datasources -->
+  <div class="panel">
+    <div class="panel-head" onclick="togglePanel(this)">
+      <h3>🗄️ Datasources (Elasticsearch)</h3>
+      <span class="arrow open">▼</span>
+    </div>
+    <div class="panel-body open">
+      <div id="dsList"></div>
+      <div style="margin-top:.8rem;border-top:1px solid var(--border);padding-top:.8rem">
+        <h4 style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">Añadir / Editar datasource</h4>
+        <div class="fg">
+          <div class="ff"><label>ID (único)</label><input type="text" id="dsId" placeholder="prod-es"></div>
+          <div class="ff"><label>Nombre</label><input type="text" id="dsName" placeholder="Producción"></div>
+          <div class="ff"><label>Host</label><input type="text" id="dsHost" placeholder="elasticsearch.example.com"></div>
+          <div class="ff"><label>Puerto</label><input type="number" id="dsPort" value="9200"></div>
+          <div class="ff"><label>Usuario</label><input type="text" id="dsUser" placeholder="elastic"></div>
+          <div class="ff"><label>Contraseña</label><input type="password" id="dsPass"></div>
+          <div class="ff"><label>Índice</label><input type="text" id="dsIndex" placeholder="app-logs-*"></div>
+          <div class="ff"><label>Ruta CA cert (opcional)</label><input type="text" id="dsCa" placeholder="/path/to/ca.pem"></div>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center;margin-top:.5rem">
+          <div class="ff" style="display:flex;align-items:center;gap:.3rem"><input type="checkbox" id="dsSsl" checked><label style="margin:0">SSL</label></div>
+          <div class="ff" style="display:flex;align-items:center;gap:.3rem"><input type="checkbox" id="dsVerify"><label style="margin:0">Verificar certificado</label></div>
+        </div>
+        <div class="fa">
+          <button onclick="saveDs()">💾 Guardar datasource</button>
+          <button class="secondary" onclick="clearDsForm()">Limpiar</button>
+          <span class="rc" id="dsStatus"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LLM -->
+  <div class="panel">
+    <div class="panel-head" onclick="togglePanel(this)">
+      <h3>🤖 LLM (Modelo de análisis)</h3>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="panel-body">
+      <div class="fg">
+        <div class="ff"><label>Provider</label>
+          <select id="llmProvider" onchange="toggleLlmFields()">
+            <option value="bedrock">Amazon Bedrock (Claude)</option>
+            <option value="ollama">Ollama (Local)</option>
+          </select>
+        </div>
+      </div>
+      <div id="llmBedrock" style="margin-top:.6rem">
+        <div class="fg">
+          <div class="ff"><label>AWS Region</label><input type="text" id="llmBrRegion" placeholder="eu-west-1"></div>
+          <div class="ff"><label>Model ID</label><input type="text" id="llmBrModel" placeholder="anthropic.claude-3-5-sonnet-..."></div>
+        </div>
+      </div>
+      <div id="llmOllama" style="margin-top:.6rem;display:none">
+        <div class="fg">
+          <div class="ff"><label>Base URL</label><input type="text" id="llmOlUrl" placeholder="http://localhost:11434"></div>
+          <div class="ff"><label>Modelo</label><input type="text" id="llmOlModel" placeholder="llama3:8b"></div>
+        </div>
+      </div>
+      <div class="fa"><button onclick="saveLlm()">💾 Guardar LLM</button><span class="rc" id="llmStatus"></span></div>
+    </div>
+  </div>
+
+  <!-- Bitbucket -->
+  <div class="panel">
+    <div class="panel-head" onclick="togglePanel(this)">
+      <h3>🔗 Bitbucket Cloud</h3>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="panel-body">
+      <div class="fg">
+        <div class="ff"><label>Workspace</label><input type="text" id="bbWorkspace" placeholder="my-workspace"></div>
+        <div class="ff"><label>Repositorio</label><input type="text" id="bbRepo" placeholder="my-app"></div>
+        <div class="ff"><label>Branch</label><input type="text" id="bbBranch" placeholder="main"></div>
+        <div class="ff"><label>Usuario</label><input type="text" id="bbUser" placeholder="user"></div>
+        <div class="ff"><label>App Password</label><input type="password" id="bbPass"></div>
+      </div>
+      <div class="fa"><button onclick="saveBb()">💾 Guardar Bitbucket</button><span class="rc" id="bbStatus"></span></div>
+    </div>
+  </div>
+
+  <!-- SMTP -->
+  <div class="panel">
+    <div class="panel-head" onclick="togglePanel(this)">
+      <h3>📧 SMTP / Jira Email</h3>
+      <span class="arrow">▼</span>
+    </div>
+    <div class="panel-body">
+      <div class="fg">
+        <div class="ff"><label>Host SMTP</label><input type="text" id="smtpHost" placeholder="smtp.example.com"></div>
+        <div class="ff"><label>Puerto</label><input type="number" id="smtpPort" value="587"></div>
+        <div class="ff"><label>Usuario</label><input type="text" id="smtpUser" placeholder="user@example.com"></div>
+        <div class="ff"><label>Contraseña</label><input type="password" id="smtpPass"></div>
+        <div class="ff"><label>Email destino Jira</label><input type="text" id="smtpJira" placeholder="jira@example.com"></div>
+        <div class="ff"><label>Clave proyecto Jira</label><input type="text" id="smtpKey" placeholder="PROJ"></div>
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:center;margin-top:.5rem">
+        <div class="ff" style="display:flex;align-items:center;gap:.3rem"><input type="checkbox" id="smtpTls" checked><label style="margin:0">STARTTLS</label></div>
+        <div class="ff" style="display:flex;align-items:center;gap:.3rem"><input type="checkbox" id="smtpSsl"><label style="margin:0">SSL directo</label></div>
+      </div>
+      <div class="fa"><button onclick="saveSmtp()">💾 Guardar SMTP</button><span class="rc" id="smtpStatus"></span></div>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -229,6 +334,7 @@ function initTabs() {
       document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
       t.classList.add('active');
       document.getElementById(t.dataset.tab).classList.add('active');
+      if (t.dataset.tab === 'tabConfig') loadConfig();
     });
   });
 }
@@ -461,6 +567,193 @@ async function doSendJira(subject, analyses) {
   } catch(e) {
     if (e.message !== 'auth') toast('Error enviando: ' + e.message, true);
   }
+}
+
+/* ============ CONFIGURACIÓN ============ */
+let cfgLoaded = false;
+
+async function loadConfig() {
+  if (cfgLoaded) { renderDsList(); return; }
+  try {
+    const r = await apiFetch('/api/settings');
+    const cfg = await r.json();
+    // LLM
+    const llm = cfg.llm || {};
+    document.getElementById('llmProvider').value = llm.provider || 'bedrock';
+    document.getElementById('llmBrRegion').value = (llm.bedrock||{}).region || '';
+    document.getElementById('llmBrModel').value = (llm.bedrock||{}).model_id || '';
+    document.getElementById('llmOlUrl').value = (llm.ollama||{}).base_url || '';
+    document.getElementById('llmOlModel').value = (llm.ollama||{}).model || '';
+    toggleLlmFields();
+    // Bitbucket
+    const bb = cfg.bitbucket || {};
+    document.getElementById('bbWorkspace').value = bb.workspace || '';
+    document.getElementById('bbRepo').value = bb.repo || '';
+    document.getElementById('bbBranch').value = bb.branch || 'main';
+    document.getElementById('bbUser').value = bb.user || '';
+    document.getElementById('bbPass').value = bb.app_password || '';
+    // SMTP
+    const sm = cfg.smtp || {};
+    document.getElementById('smtpHost').value = sm.host || '';
+    document.getElementById('smtpPort').value = sm.port || 587;
+    document.getElementById('smtpUser').value = sm.user || '';
+    document.getElementById('smtpPass').value = sm.password || '';
+    document.getElementById('smtpJira').value = sm.jira_email || '';
+    document.getElementById('smtpKey').value = sm.jira_project_key || 'PROJ';
+    document.getElementById('smtpTls').checked = sm.use_tls !== false;
+    document.getElementById('smtpSsl').checked = !!sm.use_ssl;
+    cfgLoaded = true;
+    renderDsList();
+  } catch(e) { console.error('loadConfig', e); }
+}
+
+function toggleLlmFields() {
+  const p = document.getElementById('llmProvider').value;
+  document.getElementById('llmBedrock').style.display = p === 'bedrock' ? '' : 'none';
+  document.getElementById('llmOllama').style.display = p === 'ollama' ? '' : 'none';
+}
+
+/* -- Datasources CRUD -- */
+function renderDsList() {
+  const el = document.getElementById('dsList');
+  if (!datasources.length) { el.innerHTML = '<p style="color:var(--muted);font-size:.82rem">No hay datasources configurados</p>'; return; }
+  el.innerHTML = '<table class="et" style="margin-bottom:.5rem"><thead><tr><th>ID</th><th>Nombre</th><th>Host</th><th>Puerto</th><th>SSL</th><th>Índice</th><th>Acciones</th></tr></thead><tbody>' +
+    datasources.map(d => `<tr>
+      <td style="font-family:monospace;font-size:.78rem">${esc(d.id)}</td>
+      <td>${esc(d.name)}</td>
+      <td style="font-size:.78rem">${esc(d.host)}</td>
+      <td>${d.port||9200}</td>
+      <td>${d.use_ssl?'✅':'❌'}</td>
+      <td style="font-size:.78rem">${esc(d.index)}</td>
+      <td>
+        <button class="sm" onclick="editDs('${d.id}')">✏️</button>
+        <button class="sm secondary" onclick="testDs('${d.id}')" title="Test conexión">🔌</button>
+        <button class="sm danger" onclick="deleteDs('${d.id}')">🗑️</button>
+      </td>
+    </tr>`).join('') + '</tbody></table>';
+}
+
+function editDs(id) {
+  const d = datasources.find(x => x.id === id);
+  if (!d) return;
+  document.getElementById('dsId').value = d.id;
+  document.getElementById('dsName').value = d.name || '';
+  document.getElementById('dsHost').value = d.host || '';
+  document.getElementById('dsPort').value = d.port || 9200;
+  document.getElementById('dsUser').value = d.user || '';
+  document.getElementById('dsPass').value = d.password || '';
+  document.getElementById('dsIndex').value = d.index || '';
+  document.getElementById('dsCa').value = d.ca_cert_path || '';
+  document.getElementById('dsSsl').checked = d.use_ssl !== false;
+  document.getElementById('dsVerify').checked = !!d.verify_certs;
+}
+
+function clearDsForm() {
+  ['dsId','dsName','dsHost','dsUser','dsPass','dsIndex','dsCa'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('dsPort').value = 9200;
+  document.getElementById('dsSsl').checked = true;
+  document.getElementById('dsVerify').checked = false;
+}
+
+async function saveDs() {
+  const id = document.getElementById('dsId').value.trim();
+  if (!id) { toast('ID es obligatorio', true); return; }
+  const payload = {
+    name: document.getElementById('dsName').value.trim() || id,
+    host: document.getElementById('dsHost').value.trim(),
+    port: parseInt(document.getElementById('dsPort').value) || 9200,
+    user: document.getElementById('dsUser').value.trim(),
+    password: document.getElementById('dsPass').value,
+    index: document.getElementById('dsIndex').value.trim() || 'app-logs-*',
+    ca_cert_path: document.getElementById('dsCa').value.trim(),
+    use_ssl: document.getElementById('dsSsl').checked,
+    verify_certs: document.getElementById('dsVerify').checked,
+  };
+  const exists = datasources.find(x => x.id === id);
+  const method = exists ? 'PUT' : 'POST';
+  const url = exists ? `${API}/api/datasources/${id}` : `${API}/api/datasources`;
+  if (!exists) payload.id = id;
+  try {
+    const r = await apiFetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    if (!r.ok) throw new Error((await r.json()).detail);
+    toast('✅ Datasource guardado');
+    await loadDatasources();
+    renderDsList();
+    clearDsForm();
+  } catch(e) { if (e.message!=='auth') toast('Error: '+e.message, true); }
+}
+
+async function deleteDs(id) {
+  if (!confirm(`¿Eliminar datasource "${id}"?`)) return;
+  try {
+    await apiFetch(`${API}/api/datasources/${id}`, {method:'DELETE'});
+    toast('🗑️ Datasource eliminado');
+    await loadDatasources();
+    renderDsList();
+  } catch(e) { if (e.message!=='auth') toast('Error: '+e.message, true); }
+}
+
+async function testDs(id) {
+  document.getElementById('dsStatus').innerHTML = '<div class="spinner"></div> Probando...';
+  try {
+    const r = await apiFetch(`${API}/api/datasources/${id}/test`);
+    const d = await r.json();
+    document.getElementById('dsStatus').textContent = d.ok
+      ? `✅ Conectado — cluster: ${d.cluster}, v${d.version}`
+      : `❌ Error: ${d.error}`;
+  } catch(e) { document.getElementById('dsStatus').textContent = '❌ ' + e.message; }
+}
+
+/* -- LLM save -- */
+async function saveLlm() {
+  const payload = {
+    provider: document.getElementById('llmProvider').value,
+    bedrock: { region: document.getElementById('llmBrRegion').value.trim(), model_id: document.getElementById('llmBrModel').value.trim() },
+    ollama: { base_url: document.getElementById('llmOlUrl').value.trim(), model: document.getElementById('llmOlModel').value.trim() },
+  };
+  try {
+    const r = await apiFetch(`${API}/api/settings/llm`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    if (!r.ok) throw new Error('Error guardando');
+    document.getElementById('llmStatus').textContent = '✅ Guardado';
+    toast('✅ LLM guardado');
+  } catch(e) { if (e.message!=='auth') toast('Error: '+e.message, true); }
+}
+
+/* -- Bitbucket save -- */
+async function saveBb() {
+  const payload = {
+    workspace: document.getElementById('bbWorkspace').value.trim(),
+    repo: document.getElementById('bbRepo').value.trim(),
+    branch: document.getElementById('bbBranch').value.trim() || 'main',
+    user: document.getElementById('bbUser').value.trim(),
+    app_password: document.getElementById('bbPass').value,
+  };
+  try {
+    const r = await apiFetch(`${API}/api/settings/bitbucket`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    if (!r.ok) throw new Error('Error guardando');
+    document.getElementById('bbStatus').textContent = '✅ Guardado';
+    toast('✅ Bitbucket guardado');
+  } catch(e) { if (e.message!=='auth') toast('Error: '+e.message, true); }
+}
+
+/* -- SMTP save -- */
+async function saveSmtp() {
+  const payload = {
+    host: document.getElementById('smtpHost').value.trim(),
+    port: parseInt(document.getElementById('smtpPort').value) || 587,
+    user: document.getElementById('smtpUser').value.trim(),
+    password: document.getElementById('smtpPass').value,
+    jira_email: document.getElementById('smtpJira').value.trim(),
+    jira_project_key: document.getElementById('smtpKey').value.trim() || 'PROJ',
+    use_tls: document.getElementById('smtpTls').checked,
+    use_ssl: document.getElementById('smtpSsl').checked,
+  };
+  try {
+    const r = await apiFetch(`${API}/api/settings/smtp`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+    if (!r.ok) throw new Error('Error guardando');
+    document.getElementById('smtpStatus').textContent = '✅ Guardado';
+    toast('✅ SMTP guardado');
+  } catch(e) { if (e.message!=='auth') toast('Error: '+e.message, true); }
 }
 </script>
 </body>
