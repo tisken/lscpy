@@ -124,6 +124,7 @@ def save_datasource(ds_id: str, data: dict) -> dict:
         "use_ssl": data.get("use_ssl", True),
         "verify_certs": data.get("verify_certs", False),
         "ca_cert_path": data.get("ca_cert_path", ""),
+        "field_mapping": data.get("field_mapping", {}),
     }
     ds[ds_id] = _encrypt_secrets("datasources", entry)
     _save()

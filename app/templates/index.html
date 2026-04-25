@@ -217,6 +217,16 @@ input[type="checkbox"]{accent-color:var(--accent)}
           <div class="ff"><label>Índice</label><input type="text" id="dsIndex" placeholder="app-logs-*"></div>
           <div class="ff"><label>Ruta CA cert (opcional)</label><input type="text" id="dsCa" placeholder="/path/to/ca.pem"></div>
         </div>
+      <div style="margin-top:.6rem;font-size:.78rem;color:var(--muted)">Mapeo de campos ES (vacío = defaults):</div>
+      <div class="fg" style="margin-top:.3rem">
+        <div class="ff"><label>level</label><input type="text" id="fmLevel" placeholder="level"></div>
+        <div class="ff"><label>timestamp</label><input type="text" id="fmTimestamp" placeholder="@timestamp"></div>
+        <div class="ff"><label>message</label><input type="text" id="fmMessage" placeholder="message"></div>
+        <div class="ff"><label>exception_class</label><input type="text" id="fmExcClass" placeholder="exception.class.keyword"></div>
+        <div class="ff"><label>stack_trace</label><input type="text" id="fmStack" placeholder="stack_trace"></div>
+        <div class="ff"><label>stack_trace_alt</label><input type="text" id="fmStackAlt" placeholder="exception.stacktrace"></div>
+        <div class="ff"><label>logger</label><input type="text" id="fmLogger" placeholder="logger_name.keyword"></div>
+      </div>
         <div style="display:flex;gap:.5rem;align-items:center;margin-top:.5rem">
           <div class="ff" style="display:flex;align-items:center;gap:.3rem"><input type="checkbox" id="dsSsl" checked><label style="margin:0">SSL</label></div>
           <div class="ff" style="display:flex;align-items:center;gap:.3rem"><input type="checkbox" id="dsVerify"><label style="margin:0">Verificar certificado</label></div>
@@ -706,6 +716,14 @@ function editDs(id) {
   document.getElementById('dsCa').value = d.ca_cert_path || '';
   document.getElementById('dsSsl').checked = d.use_ssl !== false;
   document.getElementById('dsVerify').checked = !!d.verify_certs;
+  const fm = d.field_mapping || {};
+  document.getElementById("fmLevel").value = fm.level || "";
+  document.getElementById("fmTimestamp").value = fm.timestamp || "";
+  document.getElementById("fmMessage").value = fm.message || "";
+  document.getElementById("fmExcClass").value = fm.exception_class || "";
+  document.getElementById("fmStack").value = fm.stack_trace || "";
+  document.getElementById("fmStackAlt").value = fm.stack_trace_alt || "";
+  document.getElementById("fmLogger").value = fm.logger || "";
 }
 
 function clearDsForm() {
@@ -713,6 +731,7 @@ function clearDsForm() {
   document.getElementById('dsPort').value = 9200;
   document.getElementById('dsSsl').checked = true;
   document.getElementById('dsVerify').checked = false;
+  ["fmLevel","fmTimestamp","fmMessage","fmExcClass","fmStack","fmStackAlt","fmLogger"].forEach(id => document.getElementById(id).value = "");
 }
 
 async function saveDs() {
@@ -728,6 +747,10 @@ async function saveDs() {
     ca_cert_path: document.getElementById('dsCa').value.trim(),
     use_ssl: document.getElementById('dsSsl').checked,
     verify_certs: document.getElementById('dsVerify').checked,
+    field_mapping: Object.fromEntries([
+      ["level","fmLevel"],["timestamp","fmTimestamp"],["message","fmMessage"],
+      ["exception_class","fmExcClass"],["stack_trace","fmStack"],["stack_trace_alt","fmStackAlt"],["logger","fmLogger"]
+    ].map(([k,id]) => [k, document.getElementById(id).value.trim()]).filter(([,v]) => v)),
   };
   const exists = datasources.find(x => x.id === id);
   const method = exists ? 'PUT' : 'POST';
