@@ -1,6 +1,6 @@
 import re
 import httpx
-from app.config import get_settings
+from app.settings_store import get_section
 
 _JAVA_STACK_RE = re.compile(
     r"at\s+([\w$.]+)\.([\w<>]+)\(([\w]+\.java):(\d+)\)"
@@ -10,42 +10,39 @@ BB_API = "https://api.bitbucket.org/2.0"
 
 
 def parse_stack_frames(stack_trace: str) -> list[dict]:
-    """Extrae frames del stacktrace Java: clase, método, fichero, línea."""
     frames = []
     for m in _JAVA_STACK_RE.finditer(stack_trace or ""):
         full_class = m.group(1)
         pkg_path = full_class.replace(".", "/")
-        frames.append(
-            {
-                "class": full_class,
-                "method": m.group(2),
-                "file": m.group(3),
-                "line": int(m.group(4)),
-                "source_path": f"{pkg_path.rsplit('/', 1)[0]}/{m.group(3)}"
-                if "/" in pkg_path
-                else m.group(3),
-            }
-        )
+        frames.append({
+            "class": full_class,
+            "method": m.group(2),
+            "file": m.group(3),
+            "line": int(m.group(4)),
+            "source_path": f"{pkg_path.rsplit('/', 1)[0]}/{m.group(3)}"
+            if "/" in pkg_path else m.group(3),
+        })
     return frames
 
 
 async def fetch_source_snippet(file_path: str, line: int, context: int = 10) -> dict | None:
-    """Descarga un fragmento de código fuente de Bitbucket Cloud."""
-    s = get_settings()
-    if not s.bitbucket_workspace or not s.bitbucket_app_password:
+    bb = get_section("bitbucket")
+    workspace = bb.get("workspace", "")
+    repo = bb.get("repo", "")
+    branch = bb.get("branch", "main")
+    user = bb.get("user", "")
+    app_password = bb.get("app_password", "")
+
+    if not workspace or not app_password:
         return None
 
-    search_url = f"{BB_API}/repositories/{s.bitbucket_workspace}/{s.bitbucket_repo}/src/{s.bitbucket_branch}"
+    search_url = f"{BB_API}/repositories/{workspace}/{repo}/src/{branch}"
 
-    async with httpx.AsyncClient(
-        auth=(s.bitbucket_user, s.bitbucket_app_password), timeout=15
-    ) as client:
-        # Buscar el fichero en el repo
+    async with httpx.AsyncClient(auth=(user, app_password), timeout=15) as client:
         resp = await client.get(f"{search_url}/{file_path}")
         if resp.status_code != 200:
-            # Intentar búsqueda por nombre de fichero
             search_resp = await client.get(
-                f"{BB_API}/repositories/{s.bitbucket_workspace}/{s.bitbucket_repo}/src/{s.bitbucket_branch}/",
+                f"{BB_API}/repositories/{workspace}/{repo}/src/{branch}/",
                 params={"q": f'path ~ "{file_path.split("/")[-1]}"', "max_depth": 20},
             )
             if search_resp.status_code != 200:
@@ -72,5 +69,5 @@ async def fetch_source_snippet(file_path: str, line: int, context: int = 10) -> 
                 f"{'>>>' if i + start + 1 == line else '   '} {i + start + 1:4d} | {l}"
                 for i, l in enumerate(snippet_lines)
             ),
-            "bb_url": f"https://bitbucket.org/{s.bitbucket_workspace}/{s.bitbucket_repo}/src/{s.bitbucket_branch}/{file_path}#lines-{line}",
+            "bb_url": f"https://bitbucket.org/{workspace}/{repo}/src/{branch}/{file_path}#lines-{line}",
         }

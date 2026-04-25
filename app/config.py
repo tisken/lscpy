@@ -3,30 +3,7 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    datasources_file: str = "datasources.json"
-
-    bitbucket_workspace: str = ""
-    bitbucket_repo: str = ""
-    bitbucket_branch: str = "main"
-    bitbucket_user: str = ""
-    bitbucket_app_password: str = ""
-
-    llm_provider: str = "bedrock"  # bedrock | ollama
-
-    aws_region: str = "eu-west-1"
-    bedrock_model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3:8b"
-
-    smtp_host: str = ""
-    smtp_port: int = 587
-    smtp_user: str = ""
-    smtp_password: str = ""
-    jira_email: str = ""
-    jira_project_key: str = "PROJ"
-
-    # Cron defaults
+    # Cron defaults (se pueden sobreescribir desde UI)
     cron_enabled: bool = False
     cron_interval_minutes: int = 60
     cron_hours: int = 24

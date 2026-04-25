@@ -1,25 +1,41 @@
 import smtplib
+import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from app.config import get_settings
+from app.settings_store import get_section
 
 
 def send_jira_email(subject: str, body_html: str, to: str | None = None) -> bool:
-    s = get_settings()
-    dest = to or s.jira_email
-    if not dest or not s.smtp_host:
+    cfg = get_section("smtp")
+    dest = to or cfg.get("jira_email", "")
+    host = cfg.get("host", "")
+    if not dest or not host:
         raise ValueError("SMTP or Jira email not configured")
 
+    port = cfg.get("port", 587)
+    user = cfg.get("user", "")
+    password = cfg.get("password", "")
+    project_key = cfg.get("jira_project_key", "PROJ")
+
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"[{s.jira_project_key}] {subject}"
-    msg["From"] = s.smtp_user
+    msg["Subject"] = f"[{project_key}] {subject}"
+    msg["From"] = user
     msg["To"] = dest
     msg.attach(MIMEText(body_html, "html"))
 
-    with smtplib.SMTP(s.smtp_host, s.smtp_port) as server:
-        server.starttls()
-        server.login(s.smtp_user, s.smtp_password)
-        server.sendmail(s.smtp_user, [dest], msg.as_string())
+    if cfg.get("use_ssl", False):
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP_SSL(host, port, context=ctx) as server:
+            if user and password:
+                server.login(user, password)
+            server.sendmail(user, [dest], msg.as_string())
+    else:
+        with smtplib.SMTP(host, port) as server:
+            if cfg.get("use_tls", True):
+                server.starttls()
+            if user and password:
+                server.login(user, password)
+            server.sendmail(user, [dest], msg.as_string())
     return True
 
 

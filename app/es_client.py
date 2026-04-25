@@ -1,20 +1,27 @@
 from elasticsearch import Elasticsearch
-from app.datasources import get_datasource
+from app.settings_store import get_datasource
+from app.fingerprint import compute_fingerprint
+from app.analysis_cache import get_error_status
 
 
 def _get_client(ds_id: str) -> tuple[Elasticsearch, dict]:
     ds = get_datasource(ds_id)
     if not ds:
         raise ValueError(f"Datasource '{ds_id}' not found")
+
+    scheme = "https" if ds.get("use_ssl", True) else "http"
+    host = ds["host"].replace("https://", "").replace("http://", "").rstrip("/")
+    port = ds.get("port", 9200)
+    url = f"{scheme}://{host}:{port}"
+
     kwargs: dict = {
-        "hosts": [ds["host"]],
+        "hosts": [url],
         "basic_auth": (ds["user"], ds["password"]),
         "request_timeout": 30,
+        "verify_certs": ds.get("verify_certs", False),
     }
     if ds.get("ca_cert_path"):
         kwargs["ca_certs"] = ds["ca_cert_path"]
-    else:
-        kwargs["verify_certs"] = False
     return Elasticsearch(**kwargs), ds
 
 
@@ -69,13 +76,21 @@ def get_top_errors(
     results = []
     for bucket in resp["aggregations"]["error_groups"]["buckets"]:
         hit = bucket["sample"]["hits"]["hits"][0]["_source"]
+        exc_class = bucket["key"][0]
+        stack = hit.get("stack_trace", hit.get("exception", {}).get("stacktrace", ""))
+        fp = compute_fingerprint(exc_class, stack)
+        status = get_error_status(fp)
         results.append({
             "count": bucket["doc_count"],
-            "exception_class": bucket["key"][0],
+            "exception_class": exc_class,
             "logger": bucket["key"][1],
             "message": hit.get("message", ""),
-            "stack_trace": hit.get("stack_trace", hit.get("exception", {}).get("stacktrace", "")),
+            "stack_trace": stack,
             "timestamp": hit.get("@timestamp", ""),
+            "fingerprint": fp,
+            "status": status["status"],
+            "first_seen": status["first_seen"],
+            "hit_count": status["hit_count"],
         })
     return results
 
@@ -95,7 +110,6 @@ def get_error_detail(ds_id: str, hours: int, exception_class: str, logger: str, 
 
 
 def test_connection(ds_id: str) -> dict:
-    """Testea la conexión a un datasource y devuelve info del cluster."""
     try:
         es, ds = _get_client(ds_id)
         info = es.info()

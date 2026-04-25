@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+import logging
+import uuid
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -7,57 +9,58 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.logging_config import setup_logging
 from app.config import get_settings
 from app.auth import ensure_default_user, authenticate, change_password, create_token, verify_token
-from app.datasources import list_datasources, get_datasource, create_datasource, update_datasource, delete_datasource
+from app.settings_store import (
+    get_all, get_section, update_section,
+    list_datasources, get_datasource, save_datasource, delete_datasource,
+)
 from app.es_client import get_top_errors, get_error_detail, test_connection
 from app.bitbucket_client import parse_stack_frames, fetch_source_snippet
 from app.llm_analyzer import analyze_error
 from app.mail_sender import send_jira_email, build_report_html
+from app.analysis_cache import get_stats as cache_stats
 from app.scheduler import (
     start_scheduler, stop_scheduler, trigger_now,
     get_cron_config, get_cron_status, update_cron_config,
 )
 
-_PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/auth/change-password"}
+logger = logging.getLogger("lsc.app")
+
+_PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/auth/change-password", "/api/health"}
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        # Rutas públicas y estáticos
         if path in _PUBLIC_PATHS or path.startswith("/static"):
             return await call_next(request)
-
-        # Token desde cookie o header
         token = request.cookies.get("lsc_token")
         auth_header = request.headers.get("authorization", "")
         if not token and auth_header.startswith("Bearer "):
             token = auth_header[7:]
-
         if not token:
             if path.startswith("/api/"):
                 return JSONResponse({"detail": "Not authenticated"}, status_code=401)
             return RedirectResponse("/login")
-
         user = verify_token(token)
         if not user:
             if path.startswith("/api/"):
                 return JSONResponse({"detail": "Invalid or expired token"}, status_code=401)
             return RedirectResponse("/login")
-
-        # Si debe cambiar contraseña, solo permitir la ruta de cambio
         if user["must_change"] and path not in ("/api/auth/change-password", "/login"):
             if path.startswith("/api/"):
                 return JSONResponse({"detail": "Password change required"}, status_code=403)
             return RedirectResponse("/login")
-
         request.state.user = user
         return await call_next(request)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
+    logger.info("LSC starting up")
     ensure_default_user()
     s = get_settings()
     update_cron_config({
@@ -70,14 +73,39 @@ async def lifespan(app: FastAPI):
         "step_send": s.cron_step_send,
     })
     start_scheduler()
+    logger.info("LSC ready")
     yield
     stop_scheduler()
+    logger.info("LSC shutdown")
 
 
-app = FastAPI(title="Log Source Checker", version="0.4.0", lifespan=lifespan)
+app = FastAPI(title="Log Source Checker", version="0.6.0", lifespan=lifespan)
 app.add_middleware(AuthMiddleware)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+
+
+# --- Health ---
+
+@app.get("/api/health")
+async def api_health():
+    """Health check: verifica conectividad a datasources configurados."""
+    datasources = list_datasources()
+    ds_status = {}
+    for ds in datasources:
+        ds_status[ds["id"]] = test_connection(ds["id"])
+
+    llm_cfg = get_section("llm")
+    smtp_cfg = get_section("smtp")
+
+    return {
+        "status": "ok",
+        "version": app.version,
+        "datasources": ds_status,
+        "llm_provider": llm_cfg.get("provider", "unknown"),
+        "smtp_configured": bool(smtp_cfg.get("host")),
+        "cache": cache_stats(),
+    }
 
 
 # --- Auth ---
@@ -96,7 +124,9 @@ class LoginRequest(BaseModel):
 async def api_login(req: LoginRequest):
     user = authenticate(req.username, req.password)
     if not user:
+        logger.warning("Failed login attempt for user: %s", req.username)
         raise HTTPException(401, "Credenciales incorrectas")
+    logger.info("User logged in: %s", req.username)
     token = create_token(user["username"], user["must_change"])
     return {"token": token, "username": user["username"], "must_change": user["must_change"]}
 
@@ -107,7 +137,6 @@ class ChangePasswordRequest(BaseModel):
 
 @app.post("/api/auth/change-password")
 async def api_change_password(req: ChangePasswordRequest, request: Request):
-    # Obtener usuario del token (header o cookie)
     token = request.cookies.get("lsc_token")
     auth_header = request.headers.get("authorization", "")
     if not token and auth_header.startswith("Bearer "):
@@ -117,6 +146,7 @@ async def api_change_password(req: ChangePasswordRequest, request: Request):
         raise HTTPException(401, "Not authenticated")
     if not change_password(user["username"], req.new_password):
         raise HTTPException(400, "Contraseña inválida (mín. 6 caracteres)")
+    logger.info("Password changed for user: %s", user["username"])
     new_token = create_token(user["username"], must_change=False)
     return {"token": new_token, "username": user["username"]}
 
@@ -135,6 +165,24 @@ async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+# --- Settings ---
+
+@app.get("/api/settings")
+async def api_get_settings():
+    return get_all()
+
+
+@app.get("/api/settings/{section}")
+async def api_get_section(section: str):
+    return get_section(section)
+
+
+@app.post("/api/settings/{section}")
+async def api_update_section(section: str, payload: dict):
+    logger.info("Settings updated: section=%s", section)
+    return update_section(section, payload)
+
+
 # --- Datasources ---
 
 @app.get("/api/datasources")
@@ -144,21 +192,23 @@ async def api_list_datasources():
 
 @app.post("/api/datasources")
 async def api_create_datasource(payload: dict):
-    return create_datasource(payload)
+    ds_id = payload.pop("id", None) or str(uuid.uuid4())[:8]
+    logger.info("Datasource created: %s", ds_id)
+    return save_datasource(ds_id, payload)
 
 
 @app.put("/api/datasources/{ds_id}")
 async def api_update_datasource(ds_id: str, payload: dict):
-    result = update_datasource(ds_id, payload)
-    if not result:
+    if not get_datasource(ds_id):
         raise HTTPException(404, "Datasource not found")
-    return result
+    return save_datasource(ds_id, payload)
 
 
 @app.delete("/api/datasources/{ds_id}")
 async def api_delete_datasource(ds_id: str):
     if not delete_datasource(ds_id):
         raise HTTPException(404, "Datasource not found")
+    logger.info("Datasource deleted: %s", ds_id)
     return {"status": "deleted"}
 
 
@@ -172,16 +222,16 @@ async def api_test_datasource(ds_id: str):
 @app.get("/api/errors")
 async def api_errors(
     ds: str, hours: int = 24, size: int = 50,
-    message: str = "", logger: str = "", exception: str = "",
+    message: str = "", logger_filter: str = "", exception: str = "",
 ):
     if not ds:
         raise HTTPException(400, "Missing datasource id")
-    return get_top_errors(ds_id=ds, hours=hours, size=size, message=message, logger=logger, exception=exception)
+    return get_top_errors(ds_id=ds, hours=hours, size=size, message=message, logger=logger_filter, exception=exception)
 
 
-@app.get("/api/errors/{exception_class}/{logger}")
-async def api_error_detail(exception_class: str, logger: str, ds: str, hours: int = 24):
-    return get_error_detail(ds, hours, exception_class, logger)
+@app.get("/api/errors/{exception_class}/{logger_name}")
+async def api_error_detail(exception_class: str, logger_name: str, ds: str, hours: int = 24):
+    return get_error_detail(ds, hours, exception_class, logger_name)
 
 
 # --- Analyze ---
@@ -236,7 +286,9 @@ async def api_send_jira(req: JiraRequest):
     html = build_report_html(req.analyses)
     try:
         send_jira_email(req.subject, html, req.to)
+        logger.info("Jira email sent: %s", req.subject)
     except Exception as e:
+        logger.error("Jira email failed: %s", e)
         raise HTTPException(500, str(e))
     return {"status": "sent"}
 
@@ -250,6 +302,7 @@ async def api_cron_config():
 
 @app.post("/api/cron/config")
 async def api_cron_update(payload: dict):
+    logger.info("Cron config updated")
     return update_cron_config(payload)
 
 
@@ -260,4 +313,5 @@ async def api_cron_status():
 
 @app.post("/api/cron/trigger")
 async def api_cron_trigger():
+    logger.info("Cron manually triggered")
     return await trigger_now()
