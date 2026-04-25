@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  lsc:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./settings.json:/app/settings.json
+      - ./users.json:/app/users.json
+      - ./analysis_cache.json:/app/analysis_cache.json
+      - ./.secret_key:/app/.secret_key
+    environment:
+      - CRON_ENABLED=false
+    restart: unless-stopped
