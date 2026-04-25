@@ -13,7 +13,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.logging_config import setup_logging
 from app.config import get_settings
-from app.auth import ensure_default_user, authenticate, change_password, create_token, verify_token
+from app.auth import (
+    ensure_default_user, authenticate, change_password, create_token, verify_token,
+    list_users, create_user, delete_user, ROLE_ADMIN,
+)
 from app.settings_store import (
     get_all, get_section, update_section,
     list_datasources, get_datasource, save_datasource, delete_datasource,
@@ -125,9 +128,9 @@ async def api_login(req: LoginRequest):
     if not user:
         log.warning("Failed login attempt for user: %s", req.username)
         raise HTTPException(401, "Credenciales incorrectas")
-    log.info("User logged in: %s", req.username)
-    token = create_token(user["username"], user["must_change"])
-    return {"token": token, "username": user["username"], "must_change": user["must_change"]}
+    log.info("User logged in: %s (role=%s)", req.username, user["role"])
+    token = create_token(user["username"], user["must_change"], user["role"])
+    return {"token": token, "username": user["username"], "role": user["role"], "must_change": user["must_change"]}
 
 
 class ChangePasswordRequest(BaseModel):
@@ -164,18 +167,26 @@ async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-# --- Settings ---
+# --- Settings (admin only) ---
+
+def _require_admin(request: Request):
+    user = getattr(request.state, "user", {})
+    if user.get("role") != ROLE_ADMIN:
+        raise HTTPException(403, "Admin role required")
 
 @app.get("/api/settings")
-async def api_get_settings():
+async def api_get_settings(request: Request):
+    _require_admin(request)
     return get_all()
 
 @app.get("/api/settings/{section}")
-async def api_get_section(section: str):
+async def api_get_section(section: str, request: Request):
+    _require_admin(request)
     return get_section(section)
 
 @app.post("/api/settings/{section}")
-async def api_update_section(section: str, payload: dict):
+async def api_update_section(section: str, payload: dict, request: Request):
+    _require_admin(request)
     log.info("Settings updated: section=%s", section)
     return update_section(section, payload)
 
@@ -308,7 +319,8 @@ async def api_cron_config():
     return get_cron_config()
 
 @app.post("/api/cron/config")
-async def api_cron_update(payload: dict):
+async def api_cron_update(payload: dict, request: Request):
+    _require_admin(request)
     log.info("Cron config updated")
     return update_cron_config(payload)
 
@@ -317,6 +329,36 @@ async def api_cron_status():
     return get_cron_status()
 
 @app.post("/api/cron/trigger")
-async def api_cron_trigger():
+async def api_cron_trigger(request: Request):
+    _require_admin(request)
     log.info("Cron manually triggered")
     return await trigger_now()
+
+
+# --- Users (admin only) ---
+
+@app.get("/api/users")
+async def api_list_users(request: Request):
+    _require_admin(request)
+    return list_users()
+
+class CreateUserRequest(BaseModel):
+    username: str
+    password: str
+    role: str = "viewer"
+
+@app.post("/api/users")
+async def api_create_user(req: CreateUserRequest, request: Request):
+    _require_admin(request)
+    if not create_user(req.username, req.password, req.role):
+        raise HTTPException(400, "User already exists")
+    log.info("User created: %s (role=%s)", req.username, req.role)
+    return {"status": "created"}
+
+@app.delete("/api/users/{username}")
+async def api_delete_user(username: str, request: Request):
+    _require_admin(request)
+    if not delete_user(username):
+        raise HTTPException(400, "Cannot delete this user")
+    log.info("User deleted: %s", username)
+    return {"status": "deleted"}
