@@ -20,7 +20,7 @@ _DEFAULTS = {
         "bedrock": {"region": "eu-west-1", "model_id": "anthropic.claude-3-5-sonnet-20241022-v2:0"},
         "ollama": {"base_url": "http://localhost:11434", "model": "llama3:8b"},
     },
-    "bitbucket": {"workspace": "", "repo": "", "branch": "main", "user": "", "app_password": ""},
+    "bitbucket": {"workspace": "", "repo": "", "branch": "main", "user": "", "app_password": "", "repos": []},
     "smtp": {"host": "", "port": 587, "user": "", "password": "", "use_tls": True, "use_ssl": False, "jira_email": "", "jira_project_key": "PROJ"},
 }
 

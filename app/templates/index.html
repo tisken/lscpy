@@ -280,10 +280,16 @@ input[type="checkbox"]{accent-color:var(--accent)}
     <div class="panel-body">
       <div class="fg">
         <div class="ff"><label>Workspace</label><input type="text" id="bbWorkspace" placeholder="my-workspace"></div>
-        <div class="ff"><label>Repositorio</label><input type="text" id="bbRepo" placeholder="my-app"></div>
-        <div class="ff"><label>Branch</label><input type="text" id="bbBranch" placeholder="main"></div>
         <div class="ff"><label>Usuario</label><input type="text" id="bbUser" placeholder="user"></div>
         <div class="ff"><label>App Password</label><input type="password" id="bbPass"></div>
+      </div>
+      <div style="margin-top:.6rem;font-size:.78rem;color:var(--muted)">Repositorios (uno por línea: repo,branch):</div>
+      <div class="fg" style="margin-top:.3rem">
+        <div class="ff"><label>Repo principal (legacy)</label><input type="text" id="bbRepo" placeholder="my-app"></div>
+        <div class="ff"><label>Branch principal</label><input type="text" id="bbBranch" placeholder="main"></div>
+      </div>
+      <div class="ff" style="margin-top:.4rem"><label>Repos adicionales (repo,branch por línea)</label>
+        <textarea id="bbRepos" rows="3" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:.4rem .6rem;border-radius:6px;font-size:.82rem;font-family:monospace" placeholder="billing-service,main&#10;auth-service,develop"></textarea>
       </div>
       <div class="fa"><button onclick="saveBb()">💾 Guardar Bitbucket</button><span class="rc" id="bbStatus"></span></div>
     </div>
@@ -662,6 +668,7 @@ async function loadConfig() {
     document.getElementById('bbBranch').value = bb.branch || 'main';
     document.getElementById('bbUser').value = bb.user || '';
     document.getElementById('bbPass').value = bb.app_password || '';
+    document.getElementById('bbRepos').value = (bb.repos||[]).map(r => r.repo+','+r.branch).join('\n');
     // SMTP
     const sm = cfg.smtp || {};
     document.getElementById('smtpHost').value = sm.host || '';
@@ -804,12 +811,18 @@ async function saveLlm() {
 
 /* -- Bitbucket save -- */
 async function saveBb() {
+  const reposRaw = document.getElementById('bbRepos').value.trim();
+  const repos = reposRaw ? reposRaw.split('\n').filter(l=>l.trim()).map(l => {
+    const [repo, branch] = l.split(',').map(s=>s.trim());
+    return {repo, branch: branch||'main'};
+  }) : [];
   const payload = {
     workspace: document.getElementById('bbWorkspace').value.trim(),
     repo: document.getElementById('bbRepo').value.trim(),
     branch: document.getElementById('bbBranch').value.trim() || 'main',
     user: document.getElementById('bbUser').value.trim(),
     app_password: document.getElementById('bbPass').value,
+    repos,
   };
   try {
     const r = await apiFetch(`${API}/api/settings/bitbucket`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
