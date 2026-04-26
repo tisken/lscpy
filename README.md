@@ -33,11 +33,11 @@ Analiza errores de producción desde Elasticsearch, localiza el código fuente e
 ### Dependencias del sistema (para export PDF)
 
 ```bash
+# AlmaLinux 9 / RHEL 9 / Rocky Linux 9
+sudo dnf install -y pango gdk-pixbuf2 cairo
+
 # Ubuntu / Debian
 sudo apt install -y libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libcairo2
-
-# Amazon Linux / RHEL / Fedora
-sudo yum install -y pango gdk-pixbuf2 cairo
 
 # macOS
 brew install pango
@@ -47,19 +47,47 @@ brew install pango
 
 ## Setup
 
-### Opción A: Local
+### Opción A: AlmaLinux 9 (instalación automática)
 
 ```bash
+sudo dnf install -y git
 git clone https://github.com/tisken/lscpy.git
 cd lscpy
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env    # opcional, solo para defaults del cron
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+sudo bash install-almalinux.sh
 ```
 
-### Opción B: Docker
+Esto instala todo: Python 3.11, dependencias del sistema, venv, servicio systemd.
+La app queda en `/opt/lsc` corriendo como servicio `lsc`.
+
+```bash
+systemctl status lsc        # Ver estado
+systemctl restart lsc       # Reiniciar
+journalctl -u lsc -f        # Ver logs en tiempo real
+```
+
+### Opción B: AlmaLinux 9 (manual)
+
+```bash
+# Dependencias del sistema
+sudo dnf install -y epel-release
+sudo dnf install -y python3.11 python3.11-pip python3.11-devel \
+    gcc libffi-devel pango gdk-pixbuf2 cairo git
+
+# Código
+git clone https://github.com/tisken/lscpy.git
+cd lscpy
+
+# Entorno virtual
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Ejecutar
+cp .env.example .env    # opcional, solo para defaults del cron
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+### Opción C: Docker
 
 ```bash
 git clone https://github.com/tisken/lscpy.git
@@ -67,11 +95,20 @@ cd lscpy
 docker compose up -d
 ```
 
-### Opción C: Docker build manual
+### Opción D: Docker build manual
 
 ```bash
 docker build -t lsc .
 docker run -p 8000:8000 -v $(pwd)/settings.json:/app/settings.json lsc
+```
+
+### Firewall (AlmaLinux 9)
+
+Si tienes firewalld activo:
+
+```bash
+sudo firewall-cmd --permanent --add-port=8000/tcp
+sudo firewall-cmd --reload
 ```
 
 ## Primer acceso
@@ -192,6 +229,7 @@ lscpy/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
+├── install-almalinux.sh   # Instalador automático AlmaLinux 9
 └── README.md
 ```
 
